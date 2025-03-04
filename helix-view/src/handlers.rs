@@ -20,6 +20,7 @@ pub struct Handlers {
     // only public because most of the actual implementation is in helix-term right now :/
     pub completions: CompletionHandler,
     pub signature_hints: Sender<lsp::SignatureHelpEvent>,
+    pub inlay_hints: lsp::InlayHintHandler,
     pub auto_save: Sender<AutoSaveEvent>,
 }
 

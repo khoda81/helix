@@ -1,15 +1,16 @@
-use std::collections::btree_map::Entry;
+use std::collections::{btree_map::Entry, HashMap};
 use std::fmt::Display;
 
 use crate::editor::Action;
 use crate::events::{
     DiagnosticsDidChange, DocumentDidChange, DocumentDidClose, LanguageServerInitialized,
 };
-use crate::Editor;
+use crate::{DocumentId, Editor, ViewId};
 use helix_core::Uri;
-use helix_event::register_hook;
+use helix_event::{register_hook, TaskController};
 use helix_lsp::util::generate_transaction_from_edits;
 use helix_lsp::{lsp, LanguageServerId, OffsetEncoding};
+use tokio::sync::mpsc::Sender;
 
 #[derive(Debug, PartialEq, Eq, Clone, Copy)]
 pub enum SignatureHelpInvoked {
@@ -23,6 +24,38 @@ pub enum SignatureHelpEvent {
     ReTrigger,
     Cancel,
     RequestComplete { open: bool },
+}
+
+#[derive(Debug)]
+pub enum InlayHintEvent {
+    /// The contents of a document changed.
+    /// This event should request annotations after a long debounce.
+    DocumentChanged(DocumentId),
+    /// The viewport was scrolled and/or the selection changed.
+    /// This event should request annotations after a short debounce.
+    ViewportScrolled(ViewId),
+}
+
+pub struct InlayHintHandler {
+    event_tx: Sender<InlayHintEvent>,
+    pub active_requests: HashMap<ViewId, TaskController>,
+}
+
+impl InlayHintHandler {
+    pub fn new(event_tx: Sender<InlayHintEvent>) -> Self {
+        Self {
+            event_tx,
+            active_requests: HashMap::new(),
+        }
+    }
+
+    pub fn tx(&self) -> &Sender<InlayHintEvent> {
+        &self.event_tx
+    }
+
+    pub fn event(&self, event: InlayHintEvent) {
+        helix_event::send_blocking(&self.event_tx, event);
+    }
 }
 
 #[derive(Debug)]
